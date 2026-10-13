@@ -1,0 +1,66 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <SoftwareSerial.h>
+
+SoftwareSerial BTSerial(2, 3); // RX, TX for HC-05
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+const int in1 = 4;
+const int in2 = 5;
+const int in3 = 6;
+const int in4 = 7;
+
+void setup() {
+  Serial.begin(9600);   
+  BTSerial.begin(9600); 
+
+  lcd.init();                      
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("MSP School Robot");
+  lcd.setCursor(0, 1);
+  lcd.print("Ready & Waiting");
+
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(in3, OUTPUT);
+  pinMode(in4, OUTPUT);
+}
+
+void loop() {
+  if (BTSerial.available() > 0) {
+    String command = BTSerial.readStringUntil('\n');
+    command.trim();
+    executeCommand(command);
+  }
+
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+    executeCommand(command);
+  }
+}
+
+void executeCommand(String command) {
+  if (command == "FORWARD") { moveForward(); updateLCD("Moving Forward"); } 
+  else if (command == "BACKWARD") { moveBackward(); updateLCD("Moving Backward"); } 
+  else if (command == "LEFT") { turnLeft(); updateLCD("Turning Left"); }
+  else if (command == "RIGHT") { turnRight(); updateLCD("Turning Right"); }
+  else if (command == "STOP") { stopRobot(); updateLCD("Robot Stopped"); }
+  else if (command.startsWith("THINKING")) { updateLCD("Thinking..."); }
+  else if (command.startsWith("ANSWER")) { updateLCD("Answer Received"); }
+}
+
+void moveForward() { digitalWrite(in1, HIGH); digitalWrite(in2, LOW); digitalWrite(in3, HIGH); digitalWrite(in4, LOW); }
+void moveBackward() { digitalWrite(in1, LOW); digitalWrite(in2, HIGH); digitalWrite(in3, LOW); digitalWrite(in4, HIGH); }
+void turnLeft() { digitalWrite(in1, LOW); digitalWrite(in2, HIGH); digitalWrite(in3, HIGH); digitalWrite(in4, LOW); }
+void turnRight() { digitalWrite(in1, HIGH); digitalWrite(in2, LOW); digitalWrite(in3, LOW); digitalWrite(in4, HIGH); }
+void stopRobot() { digitalWrite(in1, LOW); digitalWrite(in2, LOW); digitalWrite(in3, LOW); digitalWrite(in4, LOW); }
+
+void updateLCD(String msg) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("MSP School Robot");
+  lcd.setCursor(0, 1);
+  lcd.print(msg);
+}
