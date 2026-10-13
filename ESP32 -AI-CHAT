@@ -1,0 +1,99 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+
+const char* ssid = "vivo 1906";
+const char* password = "12345678";
+const String GEMINI_API_KEY = "TYPE_YOUR_API_KEY"; 
+
+WebServer server(80);
+
+void handleRoot() {
+  String html = "<script>";
+  html += "function sendCmd(cmd) { fetch('/cmd?action=' + cmd); }";
+  html += "function askAI() {";
+  html += "  let q = document.getElementById('q').value;";
+  html += "  fetch('/ask?q=' + encodeURIComponent(q)).then(res => res.text()).then(ans => {";
+  html += "    document.getElementById('ans').innerText = ans;";
+  html += "    let utterance = new SpeechSynthesisUtterance(ans);";
+  html += "    window.speechSynthesis.speak(utterance);";
+  html += "  });";
+  html += "}";
+  html += "</script>";
+  
+  html += "<div style='text-align:center; font-family:Arial; padding:10px;'>";
+  html += "<h2>MSP School Robot Controller</h2>";
+  
+  html += "<div style='background:#f4f4f4; padding:20px; border-radius:12px; display:inline-block; margin-bottom:20px; width:90%; max-width:400px;'>";
+  html += "<h3>Robot Controllers</h3>";
+  html += "<button onclick=\"sendCmd('FORWARD')\" style='font-size:20px; padding:12px 25px; margin:5px; background:#4CAF50; color:white; border:none; border-radius:8px;'>Forward</button><br>";
+  html += "<button onclick=\"sendCmd('LEFT')\" style='font-size:20px; padding:12px 25px; margin:5px; background:#2196F3; color:white; border:none; border-radius:8px;'>Left</button> ";
+  html += "<button onclick=\"sendCmd('STOP')\" style='font-size:20px; padding:12px 25px; margin:5px; background:#f44336; color:white; border:none; border-radius:8px;'>STOP</button> ";
+  html += "<button onclick=\"sendCmd('RIGHT')\" style='font-size:20px; padding:12px 25px; margin:5px; background:#2196F3; color:white; border:none; border-radius:8px;'>Right</button><br>";
+  html += "<button onclick=\"sendCmd('BACKWARD')\" style='font-size:20px; padding:12px 25px; margin:5px; background:#ff9800; color:white; border:none; border-radius:8px;'>Backward</button>";
+  html += "</div><br>";
+
+  html += "<div style='background:#e0f7fa; padding:20px; border-radius:12px; display:inline-block; width:90%; max-width:400px;'>";
+  html += "<h3>Ask Anything with AI</h3>";
+  html += "<input type='text' id='q' placeholder='கேள்வி கேட்கவும்...' style='width:90%; font-size:16px; padding:10px; margin-bottom:10px;'><br>";
+  html += "<button onclick=\"askAI()\" style='font-size:18px; padding:10px 20px; background:#009688; color:white; border:none; border-radius:8px;'>Ask AI</button>";
+  html += "<p><b>Answer:</b> <br><span id='ans' style='font-size:16px; color:#333;'></span></p>";
+  html += "</div>";
+  html += "</div>";
+  
+  server.send(200, "text/html", html);
+}
+
+void handleCommand() {
+  String action = server.arg("action");
+  Serial.println(action); 
+  server.send(200, "text/plain", "OK");
+}
+
+void handleAsk() {
+  String question = server.arg("q");
+  Serial.println("THINKING"); 
+
+  String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + GEMINI_API_KEY;
+  
+  HTTPClient http;
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+
+  String payload = "{\"contents\":[{\"parts\":[{\"text\":\"" + question + "\"}]}]}";
+  int httpResponseCode = http.POST(payload);
+
+  String answer = "Error getting response";
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    DynamicJsonDocument doc(4096);
+    DeserializationError error = deserializeJson(doc, response);
+    if (!error) {
+      const char* text = doc["candidates"][0]["content"]["parts"][0]["text"];
+      if (text) {
+        answer = String(text);
+      }
+    }
+  }
+  http.end();
+  Serial.println("ANSWER"); 
+  server.send(200, "text/plain", answer);
+}
+
+void setup() {
+  Serial.begin(9600);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+  }
+
+  server.on("/", handleRoot);
+  server.on("/cmd", handleCommand);
+  server.on("/ask", handleAsk);
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+}
